@@ -1,10 +1,10 @@
 package com.zjy.project.model.entity;
 
-import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableId;
-import com.baomidou.mybatisplus.annotation.TableName;
-import java.util.Date;
+import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
+
+import java.io.Serializable;
+import java.util.Date;
 
 /**
  * 题目
@@ -12,11 +12,11 @@ import lombok.Data;
  */
 @TableName(value ="question")
 @Data
-public class Question {
+public class Question implements Serializable {
     /**
      * id
      */
-    @TableId(type = IdType.AUTO)
+    @TableId(type = IdType.ASSIGN_ID)
     private Long id;
 
     /**
@@ -47,5 +47,9 @@ public class Question {
     /**
      * 是否删除
      */
+    @TableLogic
     private Integer isDelete;
+
+    @TableField(exist = false)
+    private static final long serialVersionUID = 1L;
 }

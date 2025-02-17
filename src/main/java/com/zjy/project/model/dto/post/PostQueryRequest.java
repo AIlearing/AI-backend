@@ -5,65 +5,62 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.io.Serializable;
+import java.util.List;
 
 /**
  * 查询请求
  *
- * @author yupi
+ * @author <a href="https://github.com/liyupi">程序员鱼皮</a>
+ * @from <a href="https://yupi.icu">编程导航知识星球</a>
  */
 @EqualsAndHashCode(callSuper = true)
 @Data
 public class PostQueryRequest extends PageRequest implements Serializable {
 
     /**
-     * 年龄
+     * id
      */
-    private Integer age;
+    private Long id;
 
     /**
-     * 性别（0-男, 1-女）
+     * id
      */
-    private Integer gender;
+    private Long notId;
 
     /**
-     * 学历
+     * 搜索词
      */
-    private String education;
+    private String searchText;
 
     /**
-     * 地点
+     * 标题
      */
-    private String place;
+    private String title;
 
     /**
-     * 职业
-     */
-    private String job;
-
-    /**
-     * 联系方式
-     */
-    private String contact;
-
-    /**
-     * 感情经历
-     */
-    private String loveExp;
-
-    /**
-     * 内容（个人介绍），支持模糊查询
+     * 内容
      */
     private String content;
 
     /**
-     * 状态（0-待审核, 1-通过, 2-拒绝）
+     * 标签列表
      */
-    private Integer reviewStatus;
+    private List<String> tags;
+
+    /**
+     * 至少有一个标签
+     */
+    private List<String> orTags;
 
     /**
      * 创建用户 id
      */
     private Long userId;
+
+    /**
+     * 收藏用户 id
+     */
+    private Long favourUserId;
 
     private static final long serialVersionUID = 1L;
 }

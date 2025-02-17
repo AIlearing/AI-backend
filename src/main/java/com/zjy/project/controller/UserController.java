@@ -1,136 +1,72 @@
 package com.zjy.project.controller;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.baomidou.mybatisplus.extension.plugins.pagination.PageDTO;
+import com.zjy.project.annotation.AuthCheck;
 import com.zjy.project.common.BaseResponse;
 import com.zjy.project.common.DeleteRequest;
 import com.zjy.project.common.ErrorCode;
 import com.zjy.project.common.ResultUtils;
+import com.zjy.project.constant.UserConstant;
 import com.zjy.project.exception.BusinessException;
-import com.yupi.project.model.dto.*;
-import com.yupi.project.model.dto.user.*;
-import com.zjy.project.model.dto.user.*;
+import com.zjy.project.exception.ThrowUtils;
+import com.zjy.project.model.dto.user.UserAddRequest;
+import com.zjy.project.model.dto.user.UserQueryRequest;
+import com.zjy.project.model.dto.user.UserUpdateRequest;
+import com.zjy.project.model.entity.User;
 import com.zjy.project.model.entity.User;
 import com.zjy.project.model.vo.UserVO;
 import com.zjy.project.service.UserService;
-import org.apache.commons.lang3.StringUtils;
+import com.zjy.project.service.UserService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
-import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * 用户接口
  *
- * @author yupi
+ * @author <a href="https://github.com/liyupi">程序员鱼皮</a>
+ * @from <a href="https://www.code-nav.cn">编程导航学习圈</a>
  */
 @RestController
-@RequestMapping("/user")
+@RequestMapping("/User")
+@Slf4j
 public class UserController {
 
     @Resource
+    private UserService UserService;
+
+    @Resource
     private UserService userService;
-
-    // region 登录相关
-
-    /**
-     * 用户注册
-     *
-     * @param userRegisterRequest
-     * @return
-     */
-    @PostMapping("/register")
-    public BaseResponse<Long> userRegister(@RequestBody UserRegisterRequest userRegisterRequest) {
-        if (userRegisterRequest == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR);
-        }
-        String userAccount = userRegisterRequest.getUserAccount();
-        String userPassword = userRegisterRequest.getUserPassword();
-        String checkPassword = userRegisterRequest.getCheckPassword();
-        if (StringUtils.isAnyBlank(userAccount, userPassword, checkPassword)) {
-            return null;
-        }
-        long result = userService.userRegister(userAccount, userPassword, checkPassword);
-        return ResultUtils.success(result);
-    }
-
-    /**
-     * 用户登录
-     *
-     * @param userLoginRequest
-     * @param request
-     * @return
-     */
-    @PostMapping("/login")
-    public BaseResponse<User> userLogin(@RequestBody UserLoginRequest userLoginRequest, HttpServletRequest request) {
-        if (userLoginRequest == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR);
-        }
-        String userAccount = userLoginRequest.getUserAccount();
-        String userPassword = userLoginRequest.getUserPassword();
-        if (StringUtils.isAnyBlank(userAccount, userPassword)) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR);
-        }
-        User user = userService.userLogin(userAccount, userPassword, request);
-        return ResultUtils.success(user);
-    }
-
-    /**
-     * 用户注销
-     *
-     * @param request
-     * @return
-     */
-    @PostMapping("/logout")
-    public BaseResponse<Boolean> userLogout(HttpServletRequest request) {
-        if (request == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR);
-        }
-        boolean result = userService.userLogout(request);
-        return ResultUtils.success(result);
-    }
-
-    /**
-     * 获取当前登录用户
-     *
-     * @param request
-     * @return
-     */
-    @GetMapping("/get/login")
-    public BaseResponse<UserVO> getLoginUser(HttpServletRequest request) {
-        User user = userService.getLoginUser(request);
-        UserVO userVO = new UserVO();
-        BeanUtils.copyProperties(user, userVO);
-        return ResultUtils.success(userVO);
-    }
-
-    // endregion
 
     // region 增删改查
 
     /**
      * 创建用户
      *
-     * @param userAddRequest
+     * @param UserAddRequest
      * @param request
      * @return
      */
     @PostMapping("/add")
-    public BaseResponse<Long> addUser(@RequestBody UserAddRequest userAddRequest, HttpServletRequest request) {
-        if (userAddRequest == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR);
-        }
-        User user = new User();
-        BeanUtils.copyProperties(userAddRequest, user);
-        boolean result = userService.save(user);
-        if (!result) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR);
-        }
-        return ResultUtils.success(user.getId());
+    public BaseResponse<Long> addUser(@RequestBody UserAddRequest UserAddRequest, HttpServletRequest request) {
+        ThrowUtils.throwIf(UserAddRequest == null, ErrorCode.PARAMS_ERROR);
+        // todo 在此处将实体类和 DTO 进行转换
+        User User = new User();
+        BeanUtils.copyProperties(UserAddRequest, User);
+        // 数据校验
+        UserService.validUser(User, true);
+        // todo 填充默认值
+        User loginUser = userService.getLoginUser(request);
+        User.setUserId(loginUser.getId());
+        // 写入数据库
+        boolean result = UserService.save(User);
+        ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
+        // 返回新写入的数据 id
+        long newUserId = User.getId();
+        return ResultUtils.success(newUserId);
     }
 
     /**
@@ -145,96 +81,157 @@ public class UserController {
         if (deleteRequest == null || deleteRequest.getId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        boolean b = userService.removeById(deleteRequest.getId());
-        return ResultUtils.success(b);
+        User user = userService.getLoginUser(request);
+        long id = deleteRequest.getId();
+        // 判断是否存在
+        User oldUser = UserService.getById(id);
+        ThrowUtils.throwIf(oldUser == null, ErrorCode.NOT_FOUND_ERROR);
+        // 仅本人或管理员可删除
+        if (!oldUser.getUserId().equals(user.getId()) && !userService.isAdmin(request)) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
+        }
+        // 操作数据库
+        boolean result = UserService.removeById(id);
+        ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
+        return ResultUtils.success(true);
     }
 
     /**
-     * 更新用户
+     * 更新用户（仅管理员可用）
      *
-     * @param userUpdateRequest
-     * @param request
+     * @param UserUpdateRequest
      * @return
      */
     @PostMapping("/update")
-    public BaseResponse<Boolean> updateUser(@RequestBody UserUpdateRequest userUpdateRequest, HttpServletRequest request) {
-        if (userUpdateRequest == null || userUpdateRequest.getId() == null) {
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<Boolean> updateUser(@RequestBody UserUpdateRequest UserUpdateRequest) {
+        if (UserUpdateRequest == null || UserUpdateRequest.getId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        User user = new User();
-        BeanUtils.copyProperties(userUpdateRequest, user);
-        boolean result = userService.updateById(user);
-        return ResultUtils.success(result);
+        // todo 在此处将实体类和 DTO 进行转换
+        User User = new User();
+        BeanUtils.copyProperties(UserUpdateRequest, User);
+        // 数据校验
+        UserService.validUser(User, false);
+        // 判断是否存在
+        long id = UserUpdateRequest.getId();
+        User oldUser = UserService.getById(id);
+        ThrowUtils.throwIf(oldUser == null, ErrorCode.NOT_FOUND_ERROR);
+        // 操作数据库
+        boolean result = UserService.updateById(User);
+        ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
+        return ResultUtils.success(true);
     }
 
     /**
-     * 根据 id 获取用户
+     * 根据 id 获取用户（封装类）
      *
      * @param id
+     * @return
+     */
+    @GetMapping("/get/vo")
+    public BaseResponse<UserVO> getUserVOById(long id, HttpServletRequest request) {
+        ThrowUtils.throwIf(id <= 0, ErrorCode.PARAMS_ERROR);
+        // 查询数据库
+        User User = UserService.getById(id);
+        ThrowUtils.throwIf(User == null, ErrorCode.NOT_FOUND_ERROR);
+        // 获取封装类
+        return ResultUtils.success(UserService.getUserVO(User, request));
+    }
+
+    /**
+     * 分页获取用户列表（仅管理员可用）
+     *
+     * @param UserQueryRequest
+     * @return
+     */
+    @PostMapping("/list/page")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<Page<User>> listUserByPage(@RequestBody UserQueryRequest UserQueryRequest) {
+        long current = UserQueryRequest.getCurrent();
+        long size = UserQueryRequest.getPageSize();
+        // 查询数据库
+        Page<User> UserPage = UserService.page(new Page<>(current, size),
+                UserService.getQueryWrapper(UserQueryRequest));
+        return ResultUtils.success(UserPage);
+    }
+
+    /**
+     * 分页获取用户列表（封装类）
+     *
+     * @param UserQueryRequest
      * @param request
      * @return
      */
-    @GetMapping("/get")
-    public BaseResponse<UserVO> getUserById(int id, HttpServletRequest request) {
-        if (id <= 0) {
+    @PostMapping("/list/page/vo")
+    public BaseResponse<Page<UserVO>> listUserVOByPage(@RequestBody UserQueryRequest UserQueryRequest,
+                                                               HttpServletRequest request) {
+        long current = UserQueryRequest.getCurrent();
+        long size = UserQueryRequest.getPageSize();
+        // 限制爬虫
+        ThrowUtils.throwIf(size > 20, ErrorCode.PARAMS_ERROR);
+        // 查询数据库
+        Page<User> UserPage = UserService.page(new Page<>(current, size),
+                UserService.getQueryWrapper(UserQueryRequest));
+        // 获取封装类
+        return ResultUtils.success(UserService.getUserVOPage(UserPage, request));
+    }
+
+    /**
+     * 分页获取当前登录用户创建的用户列表
+     *
+     * @param UserQueryRequest
+     * @param request
+     * @return
+     */
+    @PostMapping("/my/list/page/vo")
+    public BaseResponse<Page<UserVO>> listMyUserVOByPage(@RequestBody UserQueryRequest UserQueryRequest,
+                                                                 HttpServletRequest request) {
+        ThrowUtils.throwIf(UserQueryRequest == null, ErrorCode.PARAMS_ERROR);
+        // 补充查询条件，只查询当前登录用户的数据
+        User loginUser = userService.getLoginUser(request);
+        UserQueryRequest.setUserId(loginUser.getId());
+        long current = UserQueryRequest.getCurrent();
+        long size = UserQueryRequest.getPageSize();
+        // 限制爬虫
+        ThrowUtils.throwIf(size > 20, ErrorCode.PARAMS_ERROR);
+        // 查询数据库
+        Page<User> UserPage = UserService.page(new Page<>(current, size),
+                UserService.getQueryWrapper(UserQueryRequest));
+        // 获取封装类
+        return ResultUtils.success(UserService.getUserVOPage(UserPage, request));
+    }
+
+    /**
+     * 编辑用户（给用户使用）
+     *
+     * @param UserEditRequest
+     * @param request
+     * @return
+     */
+    @PostMapping("/edit")
+    public BaseResponse<Boolean> editUser(@RequestBody UserEditRequest UserEditRequest, HttpServletRequest request) {
+        if (UserEditRequest == null || UserEditRequest.getId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        User user = userService.getById(id);
-        UserVO userVO = new UserVO();
-        BeanUtils.copyProperties(user, userVO);
-        return ResultUtils.success(userVO);
-    }
-
-    /**
-     * 获取用户列表
-     *
-     * @param userQueryRequest
-     * @param request
-     * @return
-     */
-    @GetMapping("/list")
-    public BaseResponse<List<UserVO>> listUser(UserQueryRequest userQueryRequest, HttpServletRequest request) {
-        User userQuery = new User();
-        if (userQueryRequest != null) {
-            BeanUtils.copyProperties(userQueryRequest, userQuery);
+        // todo 在此处将实体类和 DTO 进行转换
+        User User = new User();
+        BeanUtils.copyProperties(UserEditRequest, User);
+        // 数据校验
+        UserService.validUser(User, false);
+        User loginUser = userService.getLoginUser(request);
+        // 判断是否存在
+        long id = UserEditRequest.getId();
+        User oldUser = UserService.getById(id);
+        ThrowUtils.throwIf(oldUser == null, ErrorCode.NOT_FOUND_ERROR);
+        // 仅本人或管理员可编辑
+        if (!oldUser.getUserId().equals(loginUser.getId()) && !userService.isAdmin(loginUser)) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
         }
-        QueryWrapper<User> queryWrapper = new QueryWrapper<>(userQuery);
-        List<User> userList = userService.list(queryWrapper);
-        List<UserVO> userVOList = userList.stream().map(user -> {
-            UserVO userVO = new UserVO();
-            BeanUtils.copyProperties(user, userVO);
-            return userVO;
-        }).collect(Collectors.toList());
-        return ResultUtils.success(userVOList);
-    }
-
-    /**
-     * 分页获取用户列表
-     *
-     * @param userQueryRequest
-     * @param request
-     * @return
-     */
-    @GetMapping("/list/page")
-    public BaseResponse<Page<UserVO>> listUserByPage(UserQueryRequest userQueryRequest, HttpServletRequest request) {
-        long current = 1;
-        long size = 10;
-        User userQuery = new User();
-        if (userQueryRequest != null) {
-            BeanUtils.copyProperties(userQueryRequest, userQuery);
-            current = userQueryRequest.getCurrent();
-            size = userQueryRequest.getPageSize();
-        }
-        QueryWrapper<User> queryWrapper = new QueryWrapper<>(userQuery);
-        Page<User> userPage = userService.page(new Page<>(current, size), queryWrapper);
-        Page<UserVO> userVOPage = new PageDTO<>(userPage.getCurrent(), userPage.getSize(), userPage.getTotal());
-        List<UserVO> userVOList = userPage.getRecords().stream().map(user -> {
-            UserVO userVO = new UserVO();
-            BeanUtils.copyProperties(user, userVO);
-            return userVO;
-        }).collect(Collectors.toList());
-        userVOPage.setRecords(userVOList);
-        return ResultUtils.success(userVOPage);
+        // 操作数据库
+        boolean result = UserService.updateById(User);
+        ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
+        return ResultUtils.success(true);
     }
 
     // endregion

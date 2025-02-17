@@ -3,59 +3,31 @@ package com.zjy.project.model.dto.post;
 import lombok.Data;
 
 import java.io.Serializable;
+import java.util.List;
 
 /**
  * 创建请求
  *
- * @TableName product
+ * @author <a href="https://github.com/liyupi">程序员鱼皮</a>
+ * @from <a href="https://yupi.icu">编程导航知识星球</a>
  */
 @Data
 public class PostAddRequest implements Serializable {
 
     /**
-     * 年龄
+     * 标题
      */
-    private Integer age;
+    private String title;
 
     /**
-     * 性别（0-男, 1-女）
-     */
-    private Integer gender;
-
-    /**
-     * 学历
-     */
-    private String education;
-
-    /**
-     * 地点
-     */
-    private String place;
-
-    /**
-     * 职业
-     */
-    private String job;
-
-    /**
-     * 联系方式
-     */
-    private String contact;
-
-    /**
-     * 感情经历
-     */
-    private String loveExp;
-
-    /**
-     * 内容（个人介绍）
+     * 内容
      */
     private String content;
 
     /**
-     * 照片地址
+     * 标签列表
      */
-    private String photo;
+    private List<String> tags;
 
     private static final long serialVersionUID = 1L;
 }
